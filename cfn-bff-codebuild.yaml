@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CodeBuild Template for CloudFormation Demo. Depends on cfn-iam.yaml, cfn-ecr.yaml
+#Metadata: 
+
+Parameters: 
+  StackPrefix:
+    Description: Stack Resource Name Prefix
+    Type: String
+    Default: Demo
+  ProjectName:
+    Description: CodeBuild Project Name
+    Type: String
+    Default: demo-bff-ci
+  RepositoryName:
+    Description: Source Code Repository Location of CodeCommit
+    Type: String
+    Default: backend-for-frontend
+  ArtifactS3BucketName:
+    Description: Artifact Location of S3 Bucket
+    Type: String
+    Default: mysd33bucket123
+#Mappings: 
+
+#Conditions: 
+
+Resources:
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:      
+      Name: !Sub ${ProjectName}
+      Description: Backend for Frontend CI Project
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepositoryName}
+      Artifacts:
+        Type: S3
+        Location: !Sub ${ArtifactS3BucketName}
+      BadgeEnabled: true
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: ECR_URI
+            Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+          - Name: REPOSITORY_URI
+            Value:
+              Fn::ImportValue: !Sub ${StackPrefix}-BffECRRepositoryUri
+      ServiceRole:
+        Fn::ImportValue: !Sub ${StackPrefix}-CodeBuildRole-Arn 
+      TimeoutInMinutes: 10
+      #TODO: Local Cache for Maven don't work?
+      Cache:
+        Type: LOCAL
+        Modes:
+          - LOCAL_CUSTOM_CACHE
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+Outputs:
+  CodeBuildProjectName:
+    Description: CodeBuild Project Name
+    Value: !Ref ProjectName
+    Export: 
+      Name: !Sub ${StackPrefix}-Bff-CodeBuildProjectName

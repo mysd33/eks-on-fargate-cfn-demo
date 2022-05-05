@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: IAM Template for CloudFormation Demo. 
+#Metadata: 
+
+Parameters: 
+  StackPrefix:
+    Description: Stack Resource Name Prefix
+    Type: String
+    Default: Demo
+  BffCodeBuildProjectName:
+    Description: Backend for Frontend CodeBuild Project Name
+    Type: String
+    Default: demo-bff-ci    
+  BffCodeCommitRepositoryName:
+    Description: Backend for Frontend Source Code Repository Location of CodeCommit
+    Type: String
+    Default: backend-for-frontend
+  BffCodePipelineName:
+    Description: Backend for Frontend CodePipeline Name
+    Type: String
+    Default: demo-bff-pipeline
+  BackendCodeBuildProjectName:
+    Description: Backend CodeBuild Project Name
+    Type: String
+    Default: demo-backend-ci
+  BackendCodeCommitRepositoryName:
+    Description: Source Code Repository Location of CodeCommit
+    Type: String
+    Default: backend
+  BackendCodePipelineName:
+    Description: Backend CodePipeline Name
+    Type: String
+    Default: demo-bff-pipeline
+  ArtifactS3BucketName:
+    Description: Artifact Location of S3 Bucket
+    Type: String
+    Default: mysd33bucket123
+
+#Mappings: 
+
+#Conditions: 
+
+Resources:
+  #IAM Role and IAM Policy for CodeBuild
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+  #TODO: Review Required Actions of Policy Document  
+  CodeBuildPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+        - Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Effect: Allow
+          Resource:
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCodeBuildProjectName}:*          
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCodeBuildProjectName}:*          
+        - Action:
+          - codecommit:GitPull
+          Effect: Allow
+          Resource:          
+            - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${BffCodeCommitRepositoryName}
+            - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${BackendCodeCommitRepositoryName}            
+        - Action:
+          - ecr:BatchCheckLayerAvailability
+          - ecr:CompleteLayerUpload
+          - ecr:GetAuthorizationToken
+          - ecr:InitiateLayerUpload
+          - ecr:PutImage
+          - ecr:UploadLayerPart
+          Effect: Allow
+          Resource: "*"
+        - Action:
+          - ecs:DescribeTaskDefinition
+          Effect: Allow
+          Resource: "*"          
+        - Action:
+          - s3:PutObject
+          - s3:GetObject
+          - s3:GetObjectVersion
+          - s3:GetBucketAcl
+          - s3:GetBucketLocation
+          Effect: Allow
+          Resource: 
+            - !Sub arn:aws:s3:::${ArtifactS3BucketName}
+            - !Sub arn:aws:s3:::${ArtifactS3BucketName}/*      
+      PolicyName: !Sub ${StackPrefix}-CodeBuildPolicy
+      Roles:
+      - !Ref CodeBuildRole
+
+  #CodePipeline Cloud Watch Event IAM Role and IAM Policy
+  CodePipelineCloudWatchEventRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: CloudWatch-Event-Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource:
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${BackendCodePipelineName}
+                  - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${BffCodePipelineName}
+  
+  #IAM Role and IAM Policy for CodePipeline
+  #TODO: Review Required Actions of Policy Document
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: AWS-CodePipeline-Service-Policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'                              
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'ecs:*'
+                Resource: '*'
+Outputs:
+  CodeBuildRoleArn:
+    Description: CodeBuildRole Arn
+    Value: !GetAtt CodeBuildRole.Arn
+    Export: 
+      Name: !Sub ${StackPrefix}-CodeBuildRole-Arn    
+  CodePipelineCloudWatchEventRoleArn:
+    Description: CodePipelineCloudWatchEventRole Arn
+    Value: !GetAtt CodePipelineCloudWatchEventRole.Arn
+    Export: 
+      Name: !Sub ${StackPrefix}-CodePipelineCloudWatchEventRole-Arn
+  CodePipelineServiceRoleArn:
+    Description: CodePipelineServiceRole Arn
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export: 
+      Name: !Sub ${StackPrefix}-CodePipelineServiceRole-Arn

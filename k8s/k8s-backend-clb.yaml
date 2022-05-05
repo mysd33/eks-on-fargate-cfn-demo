@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: demo-app
+  name: backend-app-lb
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: backend-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

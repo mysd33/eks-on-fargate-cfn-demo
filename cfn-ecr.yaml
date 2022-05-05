@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ECR Template for CloudFormation Demo
+#Metadata: 
+
+Parameters: 
+  StackPrefix:
+    Description: Stack Resource Name Prefix
+    Type: String
+    Default: Demo
+  BffRepositoryName:
+    Description: Bff App Repository Name
+    Type: String
+    Default: mynavi-sample-ecs-bff
+  BackendRepositoryName:
+    Description: Backend App Repository Name
+    Type: String
+    Default: mynavi-sample-ecs-backend
+
+#Mappings: 
+
+#Conditions: 
+
+Resources: 
+  BffECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref BffRepositoryName
+  BackendECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref BackendRepositoryName
+  
+Outputs:
+  BffECRRepositoryArn:
+    Description: Repository Arn
+    Value: !GetAtt BffECRRepository.Arn
+  BffECRRepositoryUri:
+    Description: Repository URI
+    Value: !GetAtt BffECRRepository.RepositoryUri
+    Export:
+      Name: !Sub ${StackPrefix}-BffECRRepositoryUri
+  BackendECRRepositoryArn:
+    Description: Repository Arn
+    Value: !GetAtt BackendECRRepository.Arn    
+  BackendECRRepositoryUri:
+    Description: Repository URI
+    Value: !GetAtt BackendECRRepository.RepositoryUri
+    Export:
+      Name: !Sub ${StackPrefix}-BackendECRRepositoryUri

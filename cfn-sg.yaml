@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: SecurityGroup Template for CloudFormation Demo. Depends on cfn-vpc.yaml.
+#Metadata: 
+
+Parameters: 
+  StackPrefix:
+    Description: Stack Resource Name Prefix
+    Type: String
+    Default: Demo 
+  # Terminal Machine IP (https://checkip.amazonaws.com/)
+  TerminalCidrIP:
+    Description: CidrIP for terminal machine to Connect to AWS Service
+    Type: String
+    Default: 0.0.0.0/0    
+
+#Mappings: 
+
+#Conditions: 
+
+Resources:
+  #Security Group of Bation EC2
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the bastion
+      VpcId:
+        Fn::ImportValue: !Sub ${StackPrefix}-VPC-ID
+      SecurityGroupIngress:
+        # Allow access to Bastion SSH from anywhere on the internet
+        - CidrIp: !Ref TerminalCidrIP
+          IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          Description: Ingress from the terminal machine
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackPrefix}-Bastion-SG 
+
+# Security Group for VPC Endpoint  
+  VPCEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub ${StackPrefix}-VPC-ID
+      GroupDescription: Access from VPC Private Subnet Resources
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp:
+            Fn::ImportValue: !Sub ${StackPrefix}-VPC-CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackPrefix}-VPE-SG
+
+  #Security Group of Public ALB for BFF
+  PublicALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the public facing load balancer
+      VpcId:
+        Fn::ImportValue: !Sub ${StackPrefix}-VPC-ID
+      SecurityGroupIngress:
+        # Allow access to ALB from anywhere on the internet
+        - CidrIp: !Ref TerminalCidrIP
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          Description: Ingress from the terminal machine
+        - CidrIp: !Ref TerminalCidrIP
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          Description: Ingress from the terminal machine
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackPrefix}-PubALB-SG
+ 
+
+Outputs:
+  BastionSecurityGroupID:
+    Description: BastionSecurityGroup ID
+    Value:  !Ref BastionSecurityGroup
+    Export: 
+      Name: !Sub ${StackPrefix}-BastionSecurityGroup-ID
+  VPCEndpointSecurityGroupID:
+    Description: VPCEndpointSecurityGroup ID
+    Value:  !Ref VPCEndpointSecurityGroup
+    Export: 
+      Name: !Sub ${StackPrefix}-VPCEndpointSecurityGroup-ID
+  PublicALBSecurityGroupID:
+    Description: PublicALBSecurityGroup ID
+    Value:  !Ref PublicALBSecurityGroup
+    Export: 
+      Name: !Sub ${StackPrefix}-PublicALBSecurityGroup-ID
