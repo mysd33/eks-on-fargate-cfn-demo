@@ -310,3 +310,4 @@ eksctl delete iamserviceaccount ^
 
 eksctl delete cluster --name %EKS_CLUSTER_NAME%
 aws aws iam delete-policy --policy-arn arn:aws:iam::%AWS_ACCOUNT_ID%:policy/AWSLoadBalancerControllerIAMPolicy
+```
