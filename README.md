@@ -7,6 +7,10 @@
 ## 事前準備
 * CodePipeline、CodeBuildのArtifact用のS3バケットを作成しておく
 * kubectl, eksctl, helmをインストールしておく
+  * 参考
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/install-kubectl.html
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/eksctl.html
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/helm.html
 ## IAM
 ### 1. IAMの作成
 ```sh
@@ -49,46 +53,36 @@ aws cloudformation create-stack --stack-name Backend-CodeBuild-Stack --template-
 
 ## ネットワーク環境
 * TODO: ekctlコマンドで、事前に作成したVPC上にクラスタ作成するようにする
-### 1. VPCおよびサブネット、Publicサブネット向けInternetGateway等の作成
+  * https://eksctl.io/usage/vpc-networking/
+### 1. VPC、Security Group等の作成
+* eksctlはデフォルトでEKS専用のVPCを作成しクラスタ起動することもできるが、サンプルでは既存のVPCを使ってクラスタ起動する場合を想定し、以下を実行
 ```sh
-aws cloudformation validate-template --template-body file://cfn-vpc.yaml
-aws cloudformation create-stack --stack-name EKS-VPC-Stack --template-body file://cfn-vpc.yaml
+aws cloudformation validate-template --template-body file://amazon-eks-vpc-private-subnets.yaml
+aws cloudformation create-stack --stack-name EKS-VPC-Stack --template-body file://amazon-eks-vpc-private-subnets.yaml
 ```
-### 2. Security Groupの作成
-```sh
-aws cloudformation validate-template --template-body file://cfn-sg.yaml
-aws cloudformation create-stack --stack-name EKS-SG-Stack --template-body file://cfn-sg.yaml
-```
-* 必要に応じて、端末の接続元IPアドレス等のパラメータを指定
-    * 「--parameters ParameterKey=TerminalCidrIP,ParameterValue=X.X.X.X/X」
-
-### 3. VPC Endpointの作成とプライベートサブネットのルートテーブル更新
-```sh
-aws cloudformation validate-template --template-body file://cfn-vpe.yaml
-aws cloudformation create-stack --stack-name EKS-VPE-Stack --template-body file://cfn-vpe.yaml
-```
-### 4.（作成任意）NAT Gatewayの作成とプライベートサブネットのルートテーブル更新
-* 本手順では、ECRのイメージ転送量等にかかるNAT Gatewayのコスト節約から、全てVPC Endpointで作成するので、NAT Gatewayは通常不要。
-  * とはいえ、全部VPC Endpointにすると、エンドポイント数分、デモ程度で何度も起動したり落としたりで1時間未満でも時間単位課金でコストがかえって結構かかる場合もある。その場合の調整として、本手順のVPC Endpoint作成対象を減らす等カスタマイズして、VPC Endpoint未作成のリソースアクセスに使用するために以下を追加実行すればよい。
-
-```sh
-aws cloudformation validate-template --template-body file://cfn-ngw.yaml
-aws cloudformation create-stack --stack-name EKS-NATGW-Stack --template-body file://cfn-ngw.yaml
-```
-
-
+* TODO: 現状、以下のCfnサンプルテンプレートそのままなので、カスタマイズ
+  * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/creating-a-vpc.html
+    * Subnetに、kubernetes.io/role/elb、kubernetes.io/role/internal-elbのTag付けが必要
+      * 内部ロードバランサーにプライベートサブネットを使用できるようにするには、VPC のすべてのプライベートサブネットにkubernetes.io/role/internal-elbをタグ付け
+    * https://aws.amazon.com/jp/premiumsupport/knowledge-center/eks-vpc-subnet-discovery
+      
 ## DB環境
 * TBD:　今後Aurora等のRDBリソースのサンプル作成を検討
 
 ## EKS環境
 ### 1. EKSクラスタの作成
+* TODO: ClusterConfigファイルでの実行（eksctl create cluster -f ekscluster.yaml）  
+* TODO: 既存のVPC上での作成
+  * https://eksctl.io/usage/vpc-networking/
 * 以下のeksctlコマンドを実行
-  * TODO: ClusterConfigファイルでの実行（eksctl create cluster -f ekscluster.yaml）
+  * 参考
+    * https://eksctl.io/usage/fargate-support/
+    * https://eksctl.io/usage/schema/
 
 ```sh
-set AWS_ACCOUNT_ID = (AWSアカウントID)
-set AWS_REGION = (リージョン)
-set EKS_CLUSTER_NAME = demo-eks-cluster
+set AWS_ACCOUNT_ID=(AWSアカウントID)
+set AWS_REGION=(リージョン)
+set EKS_CLUSTER_NAME=demo-eks-cluster
 
 eksctl create cluster ^
 --name %EKS_CLUSTER_NAME% ^
@@ -114,15 +108,42 @@ kubectl get nodes -o wide
 kubectl get pods --all-namespaces -o wide
 ```
 
+* アプリケーションの名前空間用のFargateプロファイルの作成
+  * TODO: ClusterConfigファイル化
+```sh
+eksctl create fargateprofile --cluster %EKS_CLUSTER_NAME% ^
+--region %AWS_REGION% ^
+--name fp-demo-app ^
+--namespace demo-app
+
+#Fargateプロファイルの表示
+#デフォルト作成（default、kube-system名前空間用）のものと
+#前述の手順で作成されたプロファイルが２つ表示される
+eksctl get fargateprofile --cluster %EKS_CLUSTER_NAME% -o yaml
+
+```
+
+* TBD: クラスタの完全Privateクラスタ化
+  * https://eksctl.io/usage/eks-private-cluster/
+  * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/private-clusters.html
+
+* TBD: コントロールプレーンのCloudWatch Logsの有効化
+  * https://eksctl.io/usage/cloudwatch-cluster-logging/
+  * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/control-plane-logs.html
+
 ### 2. ALBの作成
-* Fargateでは、CLBのロードバランサが使えないためALB作成のための設定が必要
+* Fargateでは最も簡単なCLBのロードバランサが使えない。IngressとしてALBを作成するための設定が必要。
   * 参考
     * https://aws.amazon.com/jp/premiumsupport/knowledge-center/eks-alb-ingress-controller-fargate/
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/aws-load-balancer-controller.html
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/alb-ingress.html
 * クラスターがサービスアカウントにIAMを使用することを許可する
+  * 参考
+    * https://eksctl.io/usage/iamserviceaccounts/
 ```sh
 eksctl utils associate-iam-oidc-provider --cluster %EKS_CLUSTER_NAME% --approve
 ```
-* ALB Controller用のIAMポリシーを作成する  
+* AWS Load Balancer Controller用のIAMポリシーを作成する  
 ```sh
 curl -o iam_policy.json https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.2.0/docs/install/iam_policy.json
 
@@ -139,41 +160,57 @@ eksctl create iamserviceaccount ^
   --override-existing-serviceaccounts ^
   --approve
 
-#作成されたサービスロールの確認
-eksctl get iamserviceaccount --cluster %EKS_CLUSTER_NAME% --name aws-load-balancer-controller --namespace kube-system  
+#作成されたサービスアカウントの確認
+eksctl get iamserviceaccount --cluster %EKS_CLUSTER_NAME% --name aws-load-balancer-controller --namespace kube-system
 ```
 
 * helmを使用してAWS Load Balancer Controllerをインストール
 ```sh
+#Amazon EKSチャートレポをHelmに追加
 helm repo add eks https://aws.github.io/eks-charts
+helm repo update
 
+#TargetGroupBinding カスタムリソース定義 (CRD) をインストール
 kubectl apply -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller//crds?ref=master"
 
-set VPC_ID = (EKSクラスタのVPC_ID)
+set VPC_ID=(EKSクラスタのVPC_ID)
 
+#Helm チャートをインストール
+#us-west-2以外のAWSリージョンにデプロイする場合は「--set image.repository」
+#オプションで以下のサイトにあるリポジトリを指定
+#https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/add-ons-images.html
 helm install aws-load-balancer-controller eks/aws-load-balancer-controller ^
     --set clusterName=%EKS_CLUSTER_NAME% ^
     --set serviceAccount.create=false ^
     --set region=%AWS_REGION% ^
     --set vpcId=%VPC_ID% ^
+    --set image.repository=602401143452.dkr.ecr.%AWS_REGION%.amazonaws.com/amazon/aws-load-balancer-controller ^
     --set serviceAccount.name=aws-load-balancer-controller ^
     -n kube-system
+
+#AWS Load Balancer Controllerがインストールされていることを確認
+kubectl get deployment -n kube-system aws-load-balancer-controller    
+#問題がある場合にログを見るとよい
+kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
 ```
 
-### 3. Fargateプロファイルの作成
-```sh
-eksctl create fargateprofile --cluster %EKS_CLUSTER_NAME% ^
---region %AWS_REGION% ^
---name demo-app-profile ^
---namespace demo-app
-```
+### 4. ログ、メトリックス出力の設定
+* EKS/Fargateの場合  
+  * Fluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへログを送信
+  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信  
+  * 参考
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/fargate-logging.html
+    * https://blog.mmmcorp.co.jp/blog/2021/08/11/post-1704/
+    * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/monitoring-fargate-usage.html
+    * https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/monitoring/Container-Insights-EKS-otel.html#Container-Insights-EKS-otel-Fargate
+    
+* TBD: 手順
 
-### 4. k8sリソースの作成
+### 5. k8sリソースの作成
 * envsubstコマンドを使うので、Windowsの場合には、Git bashで実行するとよい
 
 * ECRのアドレスの環境変数
 ```sh
-cd k8s
 AWS_ACCOUNT_ID=(AWSアカウントID)
 AWS_REGION=(リージョン)
 ECR_HOST=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
@@ -182,7 +219,8 @@ export ECR_HOST
 ```
 * Namespaceの作成
 ```sh
-kubectl apply -f k8s-demo-ap-namespace.yaml
+cd k8s
+kubectl apply -f k8s-demo-app-namespace.yaml
 ```
 
 * Backend APの作成
@@ -192,42 +230,52 @@ kubectl apply -f k8s-demo-ap-namespace.yaml
 envsubst < k8s-backend-deployment.yaml | kubectl apply -f -
 
 #暫定手順：CLBロードバランサの作成（on EC2のみで動作、Fagateだと動かない）
-kubectl apply -f k8s-backend-clb.yaml
+#kubectl apply -f k8s-backend-clb.yaml
 
 #Serviceの作成
 kubectl apply -f k8s-backend-service.yaml
 
 #Ingressの作成
 kubectl apply -f k8s-backend-ingress.yaml
+
+#Ingressの作成確認
+kubectl get ingress/backend-app-ingress -n demo-app
 ```
 
 * BFF APの作成
 ```sh
 #Deploymentの作成
-#kubectl get svcでEXTERNAL-IPからDNSを取得し設定
+#kubectl get ingress -n demo-appでADDRESSからBackend向けのALBのDNSを取得し設定
 BACKEND_LB_DNS=(Backend APのロードバランサ)
 #例：BACKEND_LB_DNS=a5027f47adc0d4c10bc2da33b708b8fc-1647541580.ap-northeast-1.elb.amazonaws.com
 export BACKEND_LB_DNS
 envsubst < k8s-bff-deployment.yaml | kubectl apply -f -
 
-#暫定手順：CLBロードバランサの作成（on EC2のみで動作、Fagateだと動かない）
-kubectl apply -f k8s-bff-clb.yaml
+#暫定手順：CLBロードバランサの作成（on EC2のみで動作、Fagateは動かない）
+#kubectl apply -f k8s-bff-clb.yaml
 
 #Serviceの作成
 kubectl apply -f k8s-bff-service.yaml
 
 #Ingressの作成
 kubectl apply -f k8s-bff-ingress.yaml
+
+#Ingressの作成確認
+kubectl get ingress/bff-app-ingress -n demo-app
 ```
 
-### 4. APの実行確認
-* curlコマンドかブラウザで動作確認
+### 6. APの実行確認
+* Backend AP
+  * VPC内のbationを作成し、curlコマンドで動作確認
 ```sh
-#Backend AP
 curl http://(ロードバランサのDNS名)/backend/api/v1/users
+```
 
-#Bff AP
-curl http://(ロードバランサのDNS名)/backend-for-frontend/index.html
+* Bff AP
+  * ブラウザで確認
+    * サンプルAPは、ECS用のCloudFormationサンプルと共用しているので、画面に「Hello! AWS ECS sample!」と表示されるが気にしなくてよい。
+```sh
+http://(ロードバランサのDNS名)/backend-for-frontend/index.html
 ```
 
 ## CD環境
@@ -240,15 +288,21 @@ curl http://(ロードバランサのDNS名)/backend-for-frontend/index.html
 ### 3. ソースコードの変更
 * TBD
 
-## k8sリソースとEKSクラスタの削除
+## k8sリソースとEKSクラスタ等の削除
 ```sh
-kubectl delete service backend-app-service
-kubectl delete service bff-app-service
-kubectl delete deployment backend-app
-kubectl delete deployment bff-app
+kubectl delete ingress bff-app-ingress -n demo-app
+kubectl delete ingress backend-app-ingress -n demo-app
+kubectl delete service bff-app-service -n demo-app
+kubectl delete service backend-app-service -n demo-app
+kubectl delete deployment bff-app -n demo-app
+kubectl delete deployment backend-app -n demo-app
 
-#TODO: Fargateプロファイル
+
+helm uninstall aws-load-balancer-controller -n kube-system
+
 eksctl delete fargateprofile --name my-profile --cluster %EKS_CLUSTER_NAME%
-
 eksctl delete cluster --name %EKS_CLUSTER_NAME%
+
+aws aws iam delete-policy --policy-arn arn:aws:iam::%AWS_ACCOUNT_ID%:policy/AWSLoadBalancerControllerIAMPolicy
+
 ```
