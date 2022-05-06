@@ -194,7 +194,7 @@ kubectl get deployment -n kube-system aws-load-balancer-controller
 kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
 ```
 
-### 4. ログ、メトリックス出力の設定
+### 3. ログ、メトリックス出力の設定
 * EKS/Fargateの場合  
   * Fluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへログを送信
   * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信  
@@ -206,7 +206,7 @@ kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
     
 * TBD: 手順
 
-### 5. k8sリソースの作成
+### 4. k8sリソースの作成
 * envsubstコマンドを使うので、Windowsの場合には、Git bashで実行するとよい
 
 * ECRのアドレスの環境変数
@@ -264,7 +264,7 @@ kubectl apply -f k8s-bff-ingress.yaml
 kubectl get ingress/bff-app-ingress -n demo-app
 ```
 
-### 6. APの実行確認
+### 5. APの実行確認
 * Backend AP
   * VPC内のbationを作成し、curlコマンドで動作確認
 ```sh
