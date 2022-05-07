@@ -8,6 +8,8 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internal
     #alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /backend/api/v1/users
+    #alb.ingress.kubernetes.io/healthcheck-path: /backend/actuator/health
 spec:
   rules:
   - http:
