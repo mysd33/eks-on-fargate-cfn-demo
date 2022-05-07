@@ -3,30 +3,34 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Amazon EKS Sample VPC - Private and Public subnets'
 
 Parameters:
-
   VpcBlock:
     Type: String
-    Default: 192.168.0.0/16
+#    Default: 192.168.0.0/16
+    Default: 10.0.0.0/16
     Description: The CIDR range for the VPC. This should be a valid private (RFC 1918) CIDR range.
 
   PublicSubnet01Block:
     Type: String
-    Default: 192.168.0.0/18
+#    Default: 192.168.0.0/18
+    Default: 10.0.0.0/24
     Description: CidrBlock for public subnet 01 within the VPC
 
   PublicSubnet02Block:
     Type: String
-    Default: 192.168.64.0/18
+#    Default: 192.168.64.0/18
+    Default: 10.0.1.0/24
     Description: CidrBlock for public subnet 02 within the VPC
 
   PrivateSubnet01Block:
     Type: String
-    Default: 192.168.128.0/18
+#    Default: 192.168.128.0/18
+    Default: 10.0.2.0/24    
     Description: CidrBlock for private subnet 01 within the VPC
 
   PrivateSubnet02Block:
     Type: String
-    Default: 192.168.192.0/18
+#    Default: 192.168.192.0/18
+    Default: 10.0.3.0/24
     Description: CidrBlock for private subnet 02 within the VPC
 
 Metadata:
@@ -82,15 +86,16 @@ Resources:
       - Key: Network
         Value: Private01
 
-  PrivateRouteTable02:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref VPC
-      Tags:
-      - Key: Name
-        Value: Private Subnet AZ2
-      - Key: Network
-        Value: Private02
+#Comment out to reduce costs
+#  PrivateRouteTable02:
+#    Type: AWS::EC2::RouteTable
+#    Properties:
+#      VpcId: !Ref VPC
+#      Tags:
+#      - Key: Name
+#        Value: Private Subnet AZ2
+#      - Key: Network
+#        Value: Private02
 
   PublicRoute:
     DependsOn: VPCGatewayAttachment
@@ -110,15 +115,16 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway01
 
-  PrivateRoute02:
-    DependsOn:
-    - VPCGatewayAttachment
-    - NatGateway02
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable02
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway02
+#Comment out to reduce costs
+#  PrivateRoute02:
+#    DependsOn:
+#    - VPCGatewayAttachment
+#    - NatGateway02
+#    Type: AWS::EC2::Route
+#    Properties:
+#      RouteTableId: !Ref PrivateRouteTable02
+#      DestinationCidrBlock: 0.0.0.0/0
+#      NatGatewayId: !Ref NatGateway02
 
   NatGateway01:
     DependsOn:
@@ -133,18 +139,19 @@ Resources:
       - Key: Name
         Value: !Sub '${AWS::StackName}-NatGatewayAZ1'
 
-  NatGateway02:
-    DependsOn:
-    - NatGatewayEIP2
-    - PublicSubnet02
-    - VPCGatewayAttachment
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt 'NatGatewayEIP2.AllocationId'
-      SubnetId: !Ref PublicSubnet02
-      Tags:
-      - Key: Name
-        Value: !Sub '${AWS::StackName}-NatGatewayAZ2'
+#Comment out to reduce costs
+#  NatGateway02:
+#    DependsOn:
+#    - NatGatewayEIP2
+#    - PublicSubnet02
+#    - VPCGatewayAttachment
+#    Type: AWS::EC2::NatGateway
+#    Properties:
+#      AllocationId: !GetAtt 'NatGatewayEIP2.AllocationId'
+#      SubnetId: !Ref PublicSubnet02
+#      Tags:
+#      - Key: Name
+#        Value: !Sub '${AWS::StackName}-NatGatewayAZ2'
 
   NatGatewayEIP1:
     DependsOn:
@@ -153,12 +160,13 @@ Resources:
     Properties:
       Domain: vpc
 
-  NatGatewayEIP2:
-    DependsOn:
-    - VPCGatewayAttachment
-    Type: 'AWS::EC2::EIP'
-    Properties:
-      Domain: vpc
+#Comment out to reduce costs
+#  NatGatewayEIP2:
+#    DependsOn:
+#    - VPCGatewayAttachment
+#    Type: 'AWS::EC2::EIP'
+#    Properties:
+#      Domain: vpc
 
   PublicSubnet01:
     Type: AWS::EC2::Subnet
@@ -264,8 +272,9 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet02
-      RouteTableId: !Ref PrivateRouteTable02
-
+      RouteTableId: !Ref PrivateRouteTable01
+      # RouteTableId: !Ref PrivateRouteTable02
+      
   ControlPlaneSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -276,7 +285,21 @@ Outputs:
 
   SubnetIds:
     Description: Subnets IDs in the VPC
-    Value: !Join [ ",", [ !Ref PublicSubnet01, !Ref PublicSubnet02, !Ref PrivateSubnet01, !Ref PrivateSubnet02 ] ]
+    Value: !Join
+      - ","
+      - - !Ref PublicSubnet01
+        - !Ref PublicSubnet02
+        - !Ref PrivateSubnet01
+        - !Ref PrivateSubnet02
+
+  SubnetAzs:
+    Description: Subnets AZs in the VPC
+    Value: !Join 
+      - ","
+      - - !GetAtt PublicSubnet01.AvailabilityZone
+        - !GetAtt PublicSubnet02.AvailabilityZone
+        - !GetAtt PrivateSubnet01.AvailabilityZone
+        - !GetAtt PrivateSubnet02.AvailabilityZone
 
   SecurityGroups:
     Description: Security group for the cluster control plane communication with worker nodes

@@ -1,0 +1,55 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: ${EKS_CLUSTER_NAME}
+  region: ${AWS_REGION}
+  version: "${K8S_VERSION}"
+  tags:
+    created_by: eksctl
+
+#AWS LoadBalancer Controller (for ALB Ingress)
+iam:
+  withOIDC: true
+  serviceAccounts:  
+  - metadata:
+      name: aws-load-balancer-controller
+      namespace: kube-system
+    wellKnownPolicies:
+      awsLoadBalancerController: true
+
+vpc:
+  subnets:    
+    public:
+      public-one:
+        id: ${PUB_SUBNET1_ID}
+      public-two:
+        id: ${PUB_SUBNET2_ID}
+    private:
+      private-one:
+        id: ${PRIV_SUBNET1_ID}
+      public-two:
+        id: ${PRIV_SUBNET2_ID}
+
+#addons:  
+#  - name: aws-load-balancer-controller
+#    version: latest
+#    wellKnownPolicies:
+#      awsLoadBalancerController: true
+
+#privateCluster:
+#  enabled: true
+
+fargateProfiles:
+  - name: fp-default
+    selectors:
+      - namespace: default
+      - namespace: kube-system
+  - name: fp-demo-app
+    selectors:
+      - namespace: demo-app
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
+    #enableTypes: ["audit", "authenticator", "controllerManager"]
