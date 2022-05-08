@@ -368,6 +368,10 @@ kubectl delete service backend-app-service -n demo-app
 kubectl delete deployment bff-app -n demo-app
 kubectl delete deployment backend-app -n demo-app
 
+envsubst < k8s-otel-fargate-container-insights.yaml | kubectl delete -f -
+
+envsubst < k8s-aws-logging-cloudwatch-configmap.yaml | kubectl delete -f -
+
 helm uninstall aws-load-balancer-controller -n kube-system
 
 aws iam detach-role-policy \
