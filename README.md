@@ -13,7 +13,7 @@
   * データプレーンのAPログをFluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへ送信
 
 * メトリックスのモニタリング
-  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信
+  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Container Insightsに送信
     
 * オートスケーリング
   * 現状、未対応。今後対応予定。
@@ -265,7 +265,7 @@ aws iam attach-role-policy \
 
 * データプレーンのメトリックス
   * EKS/Fargateの場合、以下の対応が必要
-    * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信  
+    * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Container Insightsに送信  
       * 参考                  
         * https://aws.amazon.com/jp/blogs/news/introducing-amazon-cloudwatch-container-insights-for-amazon-eks-fargate-using-aws-distro-for-opentelemetry/
         * https://aws-otel.github.io/docs/getting-started/container-insights/eks-fargate
