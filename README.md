@@ -8,14 +8,13 @@
   * 現時点の構成は、以下の通り
 ![システム構成図](img/eks-rolling-update-current.png)
 
-* メトリックスのモニタリング
-  * 現状、未対応。今後対応予定。
-  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信
-  
 * ログの転送
-  * 現状、未対応。今後対応予定。
-  * Fluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへログを送信
-  
+  * コントロールプレーンのログをCloudWatch Logsへログを送信
+  * データプレーンのAPログをFluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへ送信
+
+* メトリックスのモニタリング
+  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信
+    
 * オートスケーリング
   * 現状、未対応。今後対応予定。
   * Horizontal Pod AutoScaler
@@ -216,7 +215,7 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
     -n kube-system
 
 #AWS Load Balancer Controllerがインストールされていることを確認
-kubectl get deployment -n kube-system aws-load-balancer-controller    
+kubectl get deployment -n kube-system aws-load-balancer-controller
 #問題がある場合にログを見るとよい
 kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
 ```
@@ -225,28 +224,76 @@ kubectl logs -n kube-system deployment.apps/aws-load-balancer-controller
 * コントロールプレーンのログ
   * クラスタ作成時のClusterConfigファイルの設定により以下のロググループにログ出力
     * /aws/eks/demo-eks-cluster/cluster
-* データプレーンのログ、メトリックス
+
+* データプレーンのログ
   * EKS/Fargateの場合、以下の対応が必要
-    * Fluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへログを送信
-    * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信  
+    * Fluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへ以下のロググループへログを送信
+      * /eks/logs/fluent-bit-cloudwatch
     * 参考
       * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/fargate-logging.html
       * https://blog.mmmcorp.co.jp/blog/2021/08/11/post-1704/
-      * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/monitoring-fargate-usage.html
-      * https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/monitoring/Container-Insights-EKS-otel.html#Container-Insights-EKS-otel-Fargate
-  * TBD: 手順
 
-### 5. k8sリソースの作成、APの起動
+  * Namespaceの作成
+```sh
+cd k8s
+kubectl apply -f k8s-aws-observability-namespace.yaml
+```  
+  * CloudWatchへのログ送信のためのConfigMap作成
+    * ここでは、Go言語で書かれた出力プラグイン（cloudwatch）を使った例にしている
+```sh
+envsubst < k8s-aws-logging-cloudwatch-configmap.yaml | kubectl apply -f -
+```
+  * Pod実行ロールへのIAMポリシーのアタッチ
+```sh
+#CloudWatch IAM ポリシーをコンピュータにダウンロード
+curl -o permissions.json https://raw.githubusercontent.com/aws-samples/amazon-eks-fluent-logging-examples/mainline/examples/fargate/cloudwatchlogs/permissions.json
+#IAM ポリシーを作成
+aws iam create-policy --policy-name eks-fargate-logging-policy --policy-document file://permissions.json
+
+#fp-demo-appのFargateプロファイルのPod実行ロールを以下のコマンドで確認
+eksctl get fargateprofile --cluster $EKS_CLUSTER_NAME -o yaml
+
+POD_EXECUTION_ROLE_NAME=(Pod実行ロール名)
+#例：ポッド実行ロールARNの後ろの部分
+#POD_EXECUTION_ROLE_NAME=eksctl-demo-eks-cluster-cl-FargatePodExecutionRole-1BHGUXOHH7W49
+
+#Fargateプロファイルに指定されたPod実行ロールにアタッチ
+aws iam attach-role-policy \
+  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy \
+  --role-name $POD_EXECUTION_ROLE_NAME
+```
+
+* データプレーンのメトリックス
+  * EKS/Fargateの場合、以下の対応が必要
+    * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Containe Insightsに送信  
+      * 参考                  
+        * https://aws.amazon.com/jp/blogs/news/introducing-amazon-cloudwatch-container-insights-for-amazon-eks-fargate-using-aws-distro-for-opentelemetry/
+        * https://aws-otel.github.io/docs/getting-started/container-insights/eks-fargate
+        * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/monitoring-fargate-usage.html
+
+  * クラスタ作成時に、ADOT Controller用のサービスアカウントも作成されたかの確認
+```sh
+eksctl get iamserviceaccount --cluster $EKS_CLUSTER_NAME --name adot-collector --namespace fargate-container-insights
+```
+
+  * ADOT Controllerのインストール
+```sh
+envsubst < k8s-otel-fargate-container-insights.yaml | kubectl apply -f -
+```
+
+### 5. AP用のk8sリソースの作成、APの起動
 * Namespaceの作成
 ```sh
 cd k8s
 kubectl apply -f k8s-demo-app-namespace.yaml
 ```
-
 * Backend APの作成
 ```sh
 #Deploymentの作成
 envsubst < k8s-backend-deployment.yaml | kubectl apply -f -
+
+#Podの起動確認しておくとよい
+kubectl get pod -n demo-app
 
 #Serviceの作成
 kubectl apply -f k8s-backend-service.yaml
@@ -260,12 +307,16 @@ kubectl get ingress/backend-app-ingress -n demo-app
 
 * BFF APの作成
 ```sh
-#Deploymentの作成
 #kubectl get ingress/backend-app-ingress -n demo-appでADDRESSからBackend向けのALBのDNSを取得し設定
 BACKEND_LB_DNS=(Backend APのロードバランサ)
 #例：BACKEND_LB_DNS=a5027f47adc0d4c10bc2da33b708b8fc-1647541580.ap-northeast-1.elb.amazonaws.com
 export BACKEND_LB_DNS
+
+#Deploymentの作成
 envsubst < k8s-bff-deployment.yaml | kubectl apply -f -
+
+#Podの起動確認しておくとよい
+kubectl get pod -n demo-app
 
 #Serviceの作成
 kubectl apply -f k8s-bff-service.yaml
@@ -280,19 +331,24 @@ kubectl get ingress/bff-app-ingress -n demo-app
 ### 6. APの実行確認
 * TODO: bationのEC2とSecurityGroupの作成手順の追加
 
-* Backend AP
+* Backendアプリケーションの確認  
   * VPC内のbationを作成し、curlコマンドで動作確認
 ```sh
 curl http://(ロードバランサのDNS名)/backend/api/v1/users
 ```
 
-* Bff AP
+* BFFアプリケーションの確認
   * ブラウザで確認
     * サンプルAPは、ECS用のCloudFormationサンプルと共用しているので、画面に「Hello! AWS ECS sample!」と表示されるが気にしなくてよい。
 ```sh
 http://(ロードバランサのDNS名)/backend-for-frontend/index.html
 ```
-
+* APログの確認
+  * うまく動作しない場合、APログ等にエラーが出ていないか確認するとよい
+  * Cloud Watch Logの以下のロググループ
+    * /eks/logs/fluent-bit-cloudwatch
+      * from-fluent-bit-kube.var.log.containers.bff-app-XXXX
+      * from-fluent-bit-kube.var.log.containers.backend-app-XXXX
 ## CD環境
 ### 1. CodePipelineの作成
 * TBD
@@ -315,4 +371,6 @@ kubectl delete deployment backend-app -n demo-app
 helm uninstall aws-load-balancer-controller -n kube-system
 
 eksctl delete cluster --name $EKS_CLUSTER_NAME
+
+aws iam delete-policy --policy-name eks-fargate-logging-policy
 ```

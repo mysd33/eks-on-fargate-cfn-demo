@@ -8,15 +8,22 @@ metadata:
   tags:
     created_by: eksctl
 
-#AWS LoadBalancer Controller (for ALB Ingress)
+
 iam:
   withOIDC: true
   serviceAccounts:  
+  #AWS LoadBalancer Controller (for ALB Ingress)
   - metadata:
       name: aws-load-balancer-controller
       namespace: kube-system
     wellKnownPolicies:
       awsLoadBalancerController: true
+  #Container Insights for AWS Distro for OpenTelemetry (ADOT) Controller   
+  - metadata:
+      name: adot-collector
+      namespace: fargate-container-insights
+    attachPolicyARNs:
+    - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy 
 
 vpc:
   subnets:    
@@ -48,6 +55,10 @@ fargateProfiles:
   - name: fp-demo-app
     selectors:
       - namespace: demo-app
+  #Container Insights for AWS Distro for OpenTelemetry (ADOT) Controller 
+  - name: fargate-container-insights
+    selectors:
+      - namespace: fargate-container-insights
 
 cloudWatch:
   clusterLogging:
