@@ -370,7 +370,12 @@ kubectl delete deployment backend-app -n demo-app
 
 helm uninstall aws-load-balancer-controller -n kube-system
 
+aws iam detach-role-policy \
+  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy \
+  --role-name $POD_EXECUTION_ROLE_NAME
+
 eksctl delete cluster --name $EKS_CLUSTER_NAME
 
-aws iam delete-policy --policy-name eks-fargate-logging-policy
+aws iam delete-policy \
+  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy
 ```
