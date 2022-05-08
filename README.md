@@ -271,12 +271,12 @@ aws iam attach-role-policy \
         * https://aws-otel.github.io/docs/getting-started/container-insights/eks-fargate
         * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/monitoring-fargate-usage.html
 
-  * クラスタ作成時に、ADOT Controller用のサービスアカウントも作成されたかの確認
+  * クラスタ作成時に、ADOT Collector用のサービスアカウントも作成されたかの確認
 ```sh
 eksctl get iamserviceaccount --cluster $EKS_CLUSTER_NAME --name adot-collector --namespace fargate-container-insights
 ```
 
-  * ADOT Controllerのインストール
+  * ADOT Collectorのインストール
 ```sh
 envsubst < k8s-otel-fargate-container-insights.yaml | kubectl apply -f -
 ```
