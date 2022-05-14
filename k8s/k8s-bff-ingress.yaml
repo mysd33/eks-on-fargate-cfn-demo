@@ -9,6 +9,7 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /backend-for-frontend/index.html
     #alb.ingress.kubernetes.io/healthcheck-path: /backend-for-frontend/actuator/health
+    alb.ingress.kubernetes.io/inbound-cidrs: ${TERMINAL_CIDR}   
 spec:
   rules:
   - http:

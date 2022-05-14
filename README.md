@@ -13,7 +13,7 @@
   * データプレーンのAPログをFluent Bitをベースにした組み込みのログルーターを設定し、CloudWatch Logsへ送信
 
 * メトリックスのモニタリング
-  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリクスをCloudWatch Container Insightsに送信
+  * AWS Distro for OpenTelemetry (ADOT)を使用してメトリックスをCloudWatch Container Insightsに送信
     
 * オートスケーリング
   * 現状、未対応。今後対応予定。
@@ -80,30 +80,47 @@ aws cloudformation create-stack --stack-name Backend-CodeBuild-Stack --template-
 ### 1. VPCおよびサブネット、Publicサブネット向けInternetGateway等の作成
 * 以下のコマンドを実行する。
 ```sh
-aws cloudformation validate-template --template-body file://amazon-eks-vpc-private-subnets.yaml
-aws cloudformation create-stack --stack-name EKS-VPC-Stack --template-body file://amazon-eks-vpc-private-subnets.yaml
+aws cloudformation validate-template --template-body file://cfn-vpc.yaml
+aws cloudformation create-stack --stack-name EKS-VPC-Stack --template-body file://cfn-vpc.yaml
+
+#以下サイトにあるAWS提供のVPCとNATGateway等作成するCfnテンプレートをベースした場合の実行例も残しておく
+#https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/creating-a-vpc.html
+#aws cloudformation validate-template --template-body file://amazon-eks-vpc-private-subnets.yaml
+#aws cloudformation create-stack --stack-name EKS-VPC-Stack --template-body file://amazon-eks-vpc-private-subnets.yaml
 ```
 * なお、ロードバランサーよる自動サブネット検出のため、作成されるサブネットには以下のタグを付与されるようにしている。
-  * 外部ロードバランサが仕様するパブリックサブネット
+  * 外部ロードバランサが使用するパブリックサブネット
     * kubernetes.io/role/elb : 1
-  * 内部ロードバランサが仕様するプライベートサブネット 
+  * 内部ロードバランサが使用するプライベートサブネット 
     * kubernetes.io/role/internal-elb : 1
   * 参考
     * https://aws.amazon.com/jp/premiumsupport/knowledge-center/eks-vpc-subnet-discovery
 
-* TODO: 以下のサイトにあるCfnサンプルテンプレートをベースしているので、カスタマイズ版を作成予定
-  * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/creating-a-vpc.html
-    * Cfnサンプルテンプレート
-      * https://amazon-eks.s3.us-west-2.amazonaws.com/cloudformation/2020-10-29/amazon-eks-vpc-private-subnets.yaml
-* TODO: NAT Gatewayの作成も含まれているので、いずれ別ファイルのテンプレートにする
 ### 2. Security Groupの作成
-* TODO: Batsionの追加等で、必要なSecurity Groupの作成
+* Batsion等で、必要なSecurity Groupの作成
+```sh
+aws cloudformation validate-template --template-body file://cfn-sg.yaml
+aws cloudformation create-stack --stack-name EKS-SG-Stack --template-body file://cfn-sg.yaml
+```
+* 必要に応じて、端末の接続元IPアドレス等のパラメータを指定
+    * 「--parameters ParameterKey=TerminalCidrIP,ParameterValue=X.X.X.X/X」
+      * 後続の手順で環境変数「TERMINAL_CIDR=X.X.X.X/X」で指定するものと同じ
+
 ### 3. VPC Endpointの作成とプライベートサブネットのルートテーブル更新
-* TODO: 完全Private化のため、NATGatewayリソースの削除しVPC Endpointを作成
+* TODO: 現時点では未対応。完全Private化のため、NATGatewayの代わりにVPC Endpoint作成するように変更予定。
   * 参考
     * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/private-clusters.html   
     * なお、eksctlで完全Privateなクラスタ設定が可能だが、全てPrivate Subnetのみで構築となるので、今回のようなPublic SubnetにALBを配置し、以降はPrivate Subnet上のk8sリソース上のAPへアクセスするといったIngressの設定ができないので使わない。
        * https://eksctl.io/usage/eks-private-cluster/
+
+### 4. NAT Gatewayの作成とプライベートサブネットのルートテーブル更新
+* 現時点ではVPC Endpoint未対応のためNAT Gatewayを作成
+* TODO: VPC Endpoint対応したら任意作成とする
+```sh
+aws cloudformation validate-template --template-body file://cfn-ngw.yaml
+aws cloudformation create-stack --stack-name EKS-NATGW-Stack --template-body file://cfn-ngw.yaml
+```
+
 ## DB環境
 * TBD:　今後Aurora等のRDBリソースのサンプル作成を検討
 
@@ -116,15 +133,22 @@ AWS_ACCOUNT_ID=(AWSアカウントID)
 AWS_REGION=(リージョン) #例：AWS_REGION=ap-northeast-1
 EKS_CLUSTER_NAME=demo-eks-cluster #作成するEKSのクラスタ名
 K8S_VERSION=1.22 #インストールしたkubectlのバージョン
-#CloudFormationの出力表示で「VpcId」の内容を確認
+#CloudFormation（EKS-VPC-Stack）の出力表示で「VpcId」の内容を確認
 VPC_ID=(EKSクラスタのVPC_ID)
-#CloudFormationの出力表示で「SubnetIds」の内容を確認
+#CloudFormation（EKS-VPC-Stack）の出力表示で「PublicSubnetOneId」の内容を確認
 PUB_SUBNET1_ID=（1つ目のパブリックサブネットのID）
-PUB_SUBNET2_ID=（2つ目のプライベートサブネットのID）
-PRIV_SUBNET1_ID=（1つ目のパブリックサブネットのID）
+#CloudFormation（EKS-VPC-Stack）の出力表示で「PublicSubnetTwoId」の内容を確認
+PUB_SUBNET2_ID=（2つ目のパブリックサブネットのID）
+#CloudFormation（EKS-VPC-Stack）の出力表示で「PrivateSubnetOneId」の内容を確認
+PRIV_SUBNET1_ID=（1つ目のプライベートサブネットのID）
+#CloudFormation（EKS-VPC-Stack）の出力表示で「PrivateSubnetTwoId」の内容を確認
 PRIV_SUBNET2_ID=（2つ目のプライベートサブネットのID）
 #ECRのベースアドレス
 ECR_HOST=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+#CloudFormation（EKS-IAM-Stack）の出力表示で「EKSFargatePodExecutionRoleArn」の内容を確認
+POD_EXECUTION_ROLE_ARN=(FargateのPod実行ロールのARN)
+#端末の接続元IPアドレス等、PublicなALBへ接続制限したい場合のCIDR
+TERMINAL_CIDR=X.X.X.X/X
 
 export AWS_ACCOUNT_ID
 export AWS_REGION
@@ -136,9 +160,12 @@ export PUB_SUBNET2_ID
 export PRIV_SUBNET1_ID
 export PRIV_SUBNET2_ID
 export ECR_HOST
+export POD_EXECUTION_ROLE_ARN
+export TERMINAL_CIDR
 ```
 ### 2. EKSクラスタの作成
-* 以下のeksctlコマンドの実行を実行しFargateでEKSクラスタを作成
+* 以下のeksctlコマンドを実行しFargateでEKSクラスタを作成
+  * 実行すると、CloudFormationのスタックとして作成される
 ```sh
 #Dry Run
 envsubst < ekscluster.yaml | eksctl create cluster -f - --dry-run
@@ -243,25 +270,6 @@ kubectl apply -f k8s-aws-observability-namespace.yaml
 ```sh
 envsubst < k8s-aws-logging-cloudwatch-configmap.yaml | kubectl apply -f -
 ```
-  * Pod実行ロールへのIAMポリシーのアタッチ
-```sh
-#CloudWatch IAM ポリシーをコンピュータにダウンロード
-curl -o permissions.json https://raw.githubusercontent.com/aws-samples/amazon-eks-fluent-logging-examples/mainline/examples/fargate/cloudwatchlogs/permissions.json
-#IAM ポリシーを作成
-aws iam create-policy --policy-name eks-fargate-logging-policy --policy-document file://permissions.json
-
-#fp-demo-appのFargateプロファイルのPod実行ロールを以下のコマンドで確認
-eksctl get fargateprofile --cluster $EKS_CLUSTER_NAME -o yaml
-
-POD_EXECUTION_ROLE_NAME=(Pod実行ロール名)
-#例：ポッド実行ロールARNの後ろの部分
-#POD_EXECUTION_ROLE_NAME=eksctl-demo-eks-cluster-cl-FargatePodExecutionRole-1BHGUXOHH7W49
-
-#Fargateプロファイルに指定されたPod実行ロールにアタッチ
-aws iam attach-role-policy \
-  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy \
-  --role-name $POD_EXECUTION_ROLE_NAME
-```
 
 * データプレーンのメトリックス
   * EKS/Fargateの場合、以下の対応が必要
@@ -322,30 +330,35 @@ kubectl get pod -n demo-app
 kubectl apply -f k8s-bff-service.yaml
 
 #Ingressの作成
-kubectl apply -f k8s-bff-ingress.yaml
+#なお、マニフェストにALBへの接続元端末のCIDR制限が環境変数TERMINAL_CIDRで設定されている
+envsubst < k8s-bff-ingress.yaml | kubectl apply -f -
 
 #Ingressの作成確認
 kubectl get ingress/bff-app-ingress -n demo-app
 ```
 
 ### 6. APの実行確認
-* TODO: bationのEC2とSecurityGroupの作成手順の追加
-
-* Backendアプリケーションの確認  
-  * VPC内のbationを作成し、curlコマンドで動作確認
+* VPCのパブリックサブネット上にBationのEC2を起動
 ```sh
-curl http://(ロードバランサのDNS名)/backend/api/v1/users
+cd ..
+aws cloudformation validate-template --template-body file://cfn-bastion-ec2.yaml
+aws cloudformation create-stack --stack-name Demo-Bastion-Stack --template-body file://cfn-bastion-ec2.yaml
 ```
+  * 必要に応じてキーペア名等のパラメータを指定
+    * 「--parameters ParameterKey=KeyPairName,ParameterValue=myKeyPair」
+  * BastionのEC2のアドレスは、CloudFormationの「Demo-Bastion-Stack」スタックの出力「BastionDNSName」のURLを参照    
+
+* Backendアプリケーションの確認
+  * EC2にSSHでログインし、以下のコマンドを「curl http://(Private ALBのDNS名)/backend/api/v1/users」を入力するとバックエンドサービスAPのJSONレスポンスが返却    
+  * EC2、curlコマンドで動作確認
 
 * BFFアプリケーションの確認
-  * ブラウザで確認
+  * ブラウザで「http://(Public ALBのDNS名)/backend-for-frontend/index.html」を入力しフロントエンドAPの画面が表示される
     * サンプルAPは、ECS用のCloudFormationサンプルと共用しているので、画面に「Hello! AWS ECS sample!」と表示されるが気にしなくてよい。
-```sh
-http://(ロードバランサのDNS名)/backend-for-frontend/index.html
-```
+
 * APログの確認
   * うまく動作しない場合、APログ等にエラーが出ていないか確認するとよい
-  * Cloud Watch Logの以下のロググループ
+  * CloudWatch Logsの以下のロググループ
     * /eks/logs/fluent-bit-cloudwatch
       * from-fluent-bit-kube.var.log.containers.bff-app-XXXX
       * from-fluent-bit-kube.var.log.containers.backend-app-XXXX
@@ -361,6 +374,7 @@ http://(ロードバランサのDNS名)/backend-for-frontend/index.html
 
 ## k8sリソースとEKSクラスタ等の削除
 ```sh
+cd k8s
 kubectl delete ingress bff-app-ingress -n demo-app
 kubectl delete ingress backend-app-ingress -n demo-app
 kubectl delete service bff-app-service -n demo-app
@@ -374,12 +388,8 @@ envsubst < k8s-aws-logging-cloudwatch-configmap.yaml | kubectl delete -f -
 
 helm uninstall aws-load-balancer-controller -n kube-system
 
-aws iam detach-role-policy \
-  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy \
-  --role-name $POD_EXECUTION_ROLE_NAME
-
 eksctl delete cluster --name $EKS_CLUSTER_NAME
-
-aws iam delete-policy \
-  --policy-arn arn:aws:iam::$AWS_ACCOUNT_ID:policy/eks-fargate-logging-policy
 ```
+
+## その他のCloudFormationのスタック削除
+* 上記のコマンドでk8sリソースとEKSクラスタ等の削除後、残ったCloudFormationのスタックを削除

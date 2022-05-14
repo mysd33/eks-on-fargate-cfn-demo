@@ -51,31 +51,7 @@ Resources:
             Fn::ImportValue: !Sub ${StackPrefix}-VPC-CIDR
       Tags:
         - Key: Name
-          Value: !Sub ${StackPrefix}-VPE-SG
-
-  #Security Group of Public ALB for BFF
-  PublicALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Access to the public facing load balancer
-      VpcId:
-        Fn::ImportValue: !Sub ${StackPrefix}-VPC-ID
-      SecurityGroupIngress:
-        # Allow access to ALB from anywhere on the internet
-        - CidrIp: !Ref TerminalCidrIP
-          IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          Description: Ingress from the terminal machine
-        - CidrIp: !Ref TerminalCidrIP
-          IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          Description: Ingress from the terminal machine
-      Tags:
-        - Key: Name
-          Value: !Sub ${StackPrefix}-PubALB-SG
- 
+          Value: !Sub ${StackPrefix}-VPE-SG 
 
 Outputs:
   BastionSecurityGroupID:
@@ -88,8 +64,3 @@ Outputs:
     Value:  !Ref VPCEndpointSecurityGroup
     Export: 
       Name: !Sub ${StackPrefix}-VPCEndpointSecurityGroup-ID
-  PublicALBSecurityGroupID:
-    Description: PublicALBSecurityGroup ID
-    Value:  !Ref PublicALBSecurityGroup
-    Export: 
-      Name: !Sub ${StackPrefix}-PublicALBSecurityGroup-ID

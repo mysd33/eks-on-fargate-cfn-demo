@@ -41,6 +41,41 @@ Parameters:
 #Conditions: 
 
 Resources:
+  #EKS Fargate PodExecution Role
+  EKSFargatePodExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: 
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks-fargate-pods.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy        
+
+  #IAM Policy for Fargate PodExecution Role to Access CloudWatch Logs
+  EKSFargateLoggingPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: eks-fargate-logging-policy
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:CreateLogGroup
+              - logs:DescribeLogStreams
+              - logs:PutLogEvents  
+            Resource: "*"
+      Roles:
+        - !Ref EKSFargatePodExecutionRole
+  
   #IAM Role and IAM Policy for CodeBuild
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -171,6 +206,11 @@ Resources:
                   - 'ecs:*'
                 Resource: '*'
 Outputs:
+  EKSFargatePodExecutionRoleArn:
+    Description: EKSFargatePodExecutionRole Arn
+    Value: !GetAtt EKSFargatePodExecutionRole.Arn
+    Export: 
+      Name: !Sub ${StackPrefix}-EKSFargatePodExecutionRole-Arn    
   CodeBuildRoleArn:
     Description: CodeBuildRole Arn
     Value: !GetAtt CodeBuildRole.Arn

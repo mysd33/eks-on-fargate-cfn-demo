@@ -63,6 +63,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${StackPrefix}-PubSubnet1
+        - Key: kubernetes.io/role/elb
+          Value: 1          
   PublicSubnetTwo:
     Type: AWS::EC2::Subnet
     Properties:
@@ -75,6 +77,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${StackPrefix}-PubSubnet2          
+        - Key: kubernetes.io/role/elb
+          Value: 1          
   #Private Subnets
   PrivateSubnetOne:
     Type: AWS::EC2::Subnet
@@ -86,7 +90,9 @@ Resources:
       CidrBlock: !FindInMap [CidrConfig, !Ref EnvironmentType, PrivateOne]
       Tags:
         - Key: Name
-          Value: !Sub ${StackPrefix}-PrivSubnet1          
+          Value: !Sub ${StackPrefix}-PrivSubnet1
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1                  
   PrivateSubnetTwo:
     Type: AWS::EC2::Subnet
     Properties:
@@ -98,7 +104,8 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${StackPrefix}-PrivSubnet2          
-
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
   #Internet Gateway
   InternetGateway:
     Type: AWS::EC2::InternetGateway

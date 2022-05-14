@@ -11,6 +11,8 @@ metadata:
 
 iam:
   withOIDC: true
+  #Fargate Pod Execution Role for CloudWatch Logs Access
+  fargatePodExecutionRoleARN: ${POD_EXECUTION_ROLE_ARN}
   serviceAccounts:  
   #AWS LoadBalancer Controller (for ALB Ingress)
   - metadata:
