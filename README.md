@@ -390,8 +390,6 @@ aws cloudformation create-stack --stack-name BFF-CodeBuild-CD-Stack --template-b
 aws cloudformation validate-template --template-body file://cfn-backend-codebuild-cd.yaml
 aws cloudformation create-stack --stack-name Backend-CodeBuild-CD-Stack --template-body file://cfn-backend-codebuild-cd.yaml --parameters ParameterKey=ClusterName,ParameterValue=$EKS_CLUSTER_NAME
 ```
-* Artifact用のS3バケット名を変えるには、さらにそれぞれのcfnスタック作成時のコマンドでパラメータを指定する
-    * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
 
 ### 2. CodePipelineの作成
 ```sh
