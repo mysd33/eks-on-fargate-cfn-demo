@@ -23,8 +23,7 @@
       * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/metrics-server.html
 
 * CI/CD
-  * CodeBuildによる自動ビルド、ECRプッシュに対応。
-  * 現状、CodePipeline、k8sのローリングアップデートによるCDは未対応。今後対応予定。
+  * CodePipeline、CodeBuildによる自動ビルド、ECRプッシュ、k8sのローリングアップデートに対応
 ## 事前準備
 * CodePipeline、CodeBuildのArtifact用のS3バケットを作成しておく
 * kubectl, eksctl, helmをインストールしておく
@@ -55,17 +54,18 @@ aws cloudformation validate-template --template-body file://cfn-ecr.yaml
 aws cloudformation create-stack --stack-name ECR-Stack --template-body file://cfn-ecr.yaml
 ```
 
-### 3. CodeBuildのプロジェクト作成
+### 3. CI用CodeBuildのプロジェクト作成
 ```sh
-aws cloudformation validate-template --template-body file://cfn-bff-codebuild.yaml
-aws cloudformation create-stack --stack-name BFF-CodeBuild-Stack --template-body file://cfn-bff-codebuild.yaml
-aws cloudformation validate-template --template-body file://cfn-backend-codebuild.yaml
-aws cloudformation create-stack --stack-name Backend-CodeBuild-Stack --template-body file://cfn-backend-codebuild.yaml
+aws cloudformation validate-template --template-body file://cfn-bff-codebuild-ci.yaml
+aws cloudformation create-stack --stack-name BFF-CodeBuild-Stack --template-body file://cfn-bff-codebuild-ci.yaml
+
+aws cloudformation validate-template --template-body file://cfn-backend-codebuild-ci.yaml
+aws cloudformation create-stack --stack-name Backend-CodeBuild-Stack --template-body file://cfn-backend-codebuild-ci.yaml
 ```
 * Artifact用のS3バケット名を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
     * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
 
-* 本当は、CloudFormationテンプレートのCodeBuildのSorceTypeをCodePipelineにするが、いったんDockerイメージ作成して動作確認したいので、今はCodeCommitになっている。動いてはいるので保留。
+* 本当は、CloudFormationテンプレートのCodeBuildのSourceTypeをCodePipelineにするが、いったんDockerイメージ作成して動作確認したいので、今はCodeCommitになっている。動いてはいるので保留。
 
 * TODO: Mavenのカスタムローカルキャッシュによるビルド時間短縮がうまく動いていない
   * ひょっとしたら、ローカルキャッシュではなくS3でないとうまくいかない？
@@ -317,7 +317,7 @@ kubectl get ingress/backend-app-ingress -n demo-app
 ```sh
 #kubectl get ingress/backend-app-ingress -n demo-appでADDRESSからBackend向けのALBのDNSを取得し設定
 BACKEND_LB_DNS=(Backend APのロードバランサ)
-#例：BACKEND_LB_DNS=a5027f47adc0d4c10bc2da33b708b8fc-1647541580.ap-northeast-1.elb.amazonaws.com
+#例：BACKEND_LB_DNS=internal-k8s-demoapp-backenda-52b135456b-62915499.ap-northeast-1.elb.amazonaws.com
 export BACKEND_LB_DNS
 
 #Deploymentの作成
@@ -363,14 +363,53 @@ aws cloudformation create-stack --stack-name Demo-Bastion-Stack --template-body 
       * from-fluent-bit-kube.var.log.containers.bff-app-XXXX
       * from-fluent-bit-kube.var.log.containers.backend-app-XXXX
 ## CD環境
-### 1. CodePipelineの作成
-* TBD
 
-### 2. CodePipelineの確認
-* TBD
+### 1. CodeBuildのIAMロールのEKS接続設定
+* CodeBuildからEKS接続できるよう設定する
+  * 参考
+    * https://aws.amazon.com/jp/premiumsupport/knowledge-center/codebuild-eks-unauthorized-errors/
+    * https://eksctl.io/usage/iam-identity-mappings/
 
-### 3. ソースコードの変更
-* TBD
+```sh
+#CloudFormation（EKS-IAMC-Stack）の出力表示で「CodeBuildRoleArn」の内容を確認
+#CodeBuildのIAMロールのARNから「/service-role」を除いた文字列
+#例： arn:aws:iam::523530166249:role/service-role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU → arn:aws:iam::523530166249:role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU
+CODE_BUILD_ROLE_ARN=(CodeBuildのIAMロールのARN)
+#例： EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU
+CODE_BUILD_ROLE=(CodeBuildのIAMロール名)
+eksctl create iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGION --arn $CODE_BUILD_ROLE_ARN --group system:masters --username $CODE_BUILD_ROLE
+
+eksctl get iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGION --arn $CODE_BUILD_ROLE_ARN
+```
+
+### 1. CD用CodeBuildの作成
+```sh
+aws cloudformation validate-template --template-body file://cfn-bff-codebuild-cd.yaml
+aws cloudformation create-stack --stack-name BFF-CodeBuild-CD-Stack --template-body file://cfn-bff-codebuild-cd.yaml --parameters ParameterKey=ClusterName,ParameterValue=$EKS_CLUSTER_NAME ParameterKey=BackendLbDns,ParameterValue=$BACKEND_LB_DNS
+
+aws cloudformation validate-template --template-body file://cfn-backend-codebuild-cd.yaml
+aws cloudformation create-stack --stack-name Backend-CodeBuild-CD-Stack --template-body file://cfn-backend-codebuild-cd.yaml --parameters ParameterKey=ClusterName,ParameterValue=$EKS_CLUSTER_NAME
+```
+* Artifact用のS3バケット名を変えるには、さらにそれぞれのcfnスタック作成時のコマンドでパラメータを指定する
+    * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
+
+### 2. CodePipelineの作成
+```sh
+aws cloudformation validate-template --template-body file://cfn-bff-codepipeline.yaml
+aws cloudformation create-stack --stack-name Bff-CodePipeline-Stack --template-body file://cfn-bff-codepipeline.yaml
+
+aws cloudformation validate-template --template-body file://cfn-backend-codepipeline.yaml
+aws cloudformation create-stack --stack-name Backend-CodePipeline-Stack --template-body file://cfn-backend-codepipeline.yaml
+```
+
+* Artifact用のS3バケット名を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
+    * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
+
+### 3. CodePipelineの確認
+  * CodePipelineの作成後、パイプラインが自動実行されるので、デプロイ成功することを確認する
+### 4. ソースコードの変更
+  * 何らかのソースコードの変更を加えて、CodeCommitにプッシュする
+  * CodePipelineのパイプラインが実行され、新しいAPがデプロイされることを確認する
 
 ## k8sリソースとEKSクラスタ等の削除
 ```sh

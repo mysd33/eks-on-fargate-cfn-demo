@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CodeBuild Template for CloudFormation Demo. Depends on cfn-iam.yaml
+#Metadata: 
+
+Parameters: 
+  StackPrefix:
+    Description: Stack Resource Name Prefix
+    Type: String
+    Default: Demo
+  BackendLbDns:
+    Description: Backend LoadBalancer DNS Name
+    Type: String  
+  ClusterName:
+    Description: EKS Cluster Name
+    Type: String    
+  ProjectName:
+    Description: CD CodeBuild Project Name
+    Type: String
+    Default: demo-bff-cd
+    
+#Mappings: 
+
+#Conditions: 
+
+Resources:
+  CdCodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:      
+      Name: !Sub ${ProjectName}
+      Description: Backend for Frontend CD Project
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-eks-cd.yml
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        PrivilegedMode: true               
+        EnvironmentVariables:
+          - Name: REPOSITORY_URI
+            Value:
+              Fn::ImportValue: !Sub ${StackPrefix}-BffECRRepositoryUri
+          - Name: AWS_REGION
+            Value: !Sub ${AWS::Region}        
+          - Name: CLUSTER_NAME
+            Value: !Ref ClusterName        
+          - Name: BACKEND_LB_DNS
+            Value: !Ref BackendLbDns
+      ServiceRole:
+        Fn::ImportValue: !Sub ${StackPrefix}-CodeBuildRole-Arn
+      TimeoutInMinutes: 10
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED          
+Outputs:
+  CdCodeBuildProjectName:
+    Description: CD CodeBuild Project Name
+    Value: !Ref ProjectName
+    Export: 
+      Name: !Sub ${StackPrefix}-Bff-CdCodeBuildProjectName

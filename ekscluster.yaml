@@ -37,7 +37,7 @@ vpc:
     private:
       private-one:
         id: ${PRIV_SUBNET1_ID}
-      public-two:
+      private-two:
         id: ${PRIV_SUBNET2_ID}
 
 #addons:  

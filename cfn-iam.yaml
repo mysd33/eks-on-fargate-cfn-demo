@@ -7,10 +7,14 @@ Parameters:
     Description: Stack Resource Name Prefix
     Type: String
     Default: Demo
-  BffCodeBuildProjectName:
-    Description: Backend for Frontend CodeBuild Project Name
+  BffCiCodeBuildProjectName:
+    Description: Backend for Frontend CI CodeBuild Project Name
     Type: String
     Default: demo-bff-ci    
+  BffCdCodeBuildProjectName:
+    Description: Backend for Frontend CD CodeBuild Project Name
+    Type: String
+    Default: demo-bff-cd
   BffCodeCommitRepositoryName:
     Description: Backend for Frontend Source Code Repository Location of CodeCommit
     Type: String
@@ -19,10 +23,14 @@ Parameters:
     Description: Backend for Frontend CodePipeline Name
     Type: String
     Default: demo-bff-pipeline
-  BackendCodeBuildProjectName:
-    Description: Backend CodeBuild Project Name
+  BackendCiCodeBuildProjectName:
+    Description: Backend CI CodeBuild Project Name
     Type: String
     Default: demo-backend-ci
+  BackendCdCodeBuildProjectName:
+    Description: Backend CD CodeBuild Project Name
+    Type: String
+    Default: demo-backend-cd
   BackendCodeCommitRepositoryName:
     Description: Source Code Repository Location of CodeCommit
     Type: String
@@ -102,10 +110,14 @@ Resources:
           - logs:PutLogEvents
           Effect: Allow
           Resource:
-          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCodeBuildProjectName}
-          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCodeBuildProjectName}:*          
-          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCodeBuildProjectName}
-          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCodeBuildProjectName}:*          
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCiCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCiCodeBuildProjectName}:*          
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCiCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCiCodeBuildProjectName}:*          
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCdCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BffCdCodeBuildProjectName}:*          
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCdCodeBuildProjectName}
+          - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${BackendCdCodeBuildProjectName}:*
         - Action:
           - codecommit:GitPull
           Effect: Allow
@@ -134,7 +146,14 @@ Resources:
           Effect: Allow
           Resource: 
             - !Sub arn:aws:s3:::${ArtifactS3BucketName}
-            - !Sub arn:aws:s3:::${ArtifactS3BucketName}/*      
+            - !Sub arn:aws:s3:::${ArtifactS3BucketName}/*
+        - Action:
+          - eks:UpdateClusterVersion
+          - eks:DescribeCluster
+          - eks:ListClusters
+          Effect: Allow
+          Resource:
+            - "*"
       PolicyName: !Sub ${StackPrefix}-CodeBuildPolicy
       Roles:
       - !Ref CodeBuildRole

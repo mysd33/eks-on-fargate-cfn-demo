@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: CodeBuild Template for CloudFormation Demo. Depends on cfn-iam.yaml, cfn-ecr.yaml
+Description: CI CodeBuild Template for CloudFormation Demo. Depends on cfn-iam.yaml, cfn-ecr.yaml
 #Metadata: 
 
 Parameters: 
@@ -8,7 +8,7 @@ Parameters:
     Type: String
     Default: Demo
   ProjectName:
-    Description: CodeBuild Project Name
+    Description: CI CodeBuild Project Name
     Type: String
     Default: demo-backend-ci
   RepositoryName:
@@ -25,7 +25,7 @@ Parameters:
 #Conditions: 
 
 Resources:
-  CodeBuildProject:
+  CiCodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:      
       Name: !Sub ${ProjectName}
@@ -59,9 +59,10 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
+        
 Outputs:
-  CodeBuildProjectName:
-    Description: CodeBuild Project Name
+  CiCodeBuildProjectName:
+    Description: CI CodeBuild Project Name
     Value: !Ref ProjectName
     Export: 
-      Name: !Sub ${StackPrefix}-Backend-CodeBuildProjectName
+      Name: !Sub ${StackPrefix}-Backend-CiCodeBuildProjectName   
