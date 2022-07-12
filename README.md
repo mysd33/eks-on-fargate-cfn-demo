@@ -379,6 +379,7 @@ CODE_BUILD_ROLE_ARN=(CodeBuildのIAMロールのARN)
 CODE_BUILD_ROLE=(CodeBuildのIAMロール名)
 eksctl create iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGION --arn $CODE_BUILD_ROLE_ARN --group system:masters --username $CODE_BUILD_ROLE
 
+#iamidentitymappingの作成確認
 eksctl get iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGION --arn $CODE_BUILD_ROLE_ARN
 ```
 
