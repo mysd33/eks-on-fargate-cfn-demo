@@ -57,10 +57,10 @@ aws cloudformation create-stack --stack-name ECR-Stack --template-body file://cf
 ### 3. CI用CodeBuildのプロジェクト作成
 ```sh
 aws cloudformation validate-template --template-body file://cfn-bff-codebuild-ci.yaml
-aws cloudformation create-stack --stack-name BFF-CodeBuild-Stack --template-body file://cfn-bff-codebuild-ci.yaml
+aws cloudformation create-stack --stack-name BFF-CodeBuild-CI-Stack --template-body file://cfn-bff-codebuild-ci.yaml
 
 aws cloudformation validate-template --template-body file://cfn-backend-codebuild-ci.yaml
-aws cloudformation create-stack --stack-name Backend-CodeBuild-Stack --template-body file://cfn-backend-codebuild-ci.yaml
+aws cloudformation create-stack --stack-name Backend-CodeBuild-CI-Stack --template-body file://cfn-backend-codebuild-ci.yaml
 ```
 * Artifact用のS3バケット名を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
     * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
