@@ -373,7 +373,7 @@ aws cloudformation create-stack --stack-name Demo-Bastion-Stack --template-body 
 ```sh
 #CloudFormation（EKS-IAMC-Stack）の出力表示で「CodeBuildRoleArn」の内容を確認
 #CodeBuildのIAMロールのARNから「/service-role」を除いた文字列
-#例： arn:aws:iam::523530166249:role/service-role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU → arn:aws:iam::523530166249:role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU
+#例： arn:aws:iam::999999999999:role/service-role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU → arn:aws:iam::999999999999:role/EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU
 CODE_BUILD_ROLE_ARN=(CodeBuildのIAMロールのARN)
 #例： EKS-IAM-Stack-CodeBuildRole-NTM312K33QOU
 CODE_BUILD_ROLE=(CodeBuildのIAMロール名)
@@ -382,7 +382,7 @@ eksctl create iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGIO
 eksctl get iamidentitymapping --cluster $EKS_CLUSTER_NAME --region=$AWS_REGION --arn $CODE_BUILD_ROLE_ARN
 ```
 
-### 1. CD用CodeBuildの作成
+### 2. CD用CodeBuildの作成
 ```sh
 aws cloudformation validate-template --template-body file://cfn-bff-codebuild-cd.yaml
 aws cloudformation create-stack --stack-name BFF-CodeBuild-CD-Stack --template-body file://cfn-bff-codebuild-cd.yaml --parameters ParameterKey=ClusterName,ParameterValue=$EKS_CLUSTER_NAME ParameterKey=BackendLbDns,ParameterValue=$BACKEND_LB_DNS
@@ -391,7 +391,7 @@ aws cloudformation validate-template --template-body file://cfn-backend-codebuil
 aws cloudformation create-stack --stack-name Backend-CodeBuild-CD-Stack --template-body file://cfn-backend-codebuild-cd.yaml --parameters ParameterKey=ClusterName,ParameterValue=$EKS_CLUSTER_NAME
 ```
 
-### 2. CodePipelineの作成
+### 3. CodePipelineの作成
 ```sh
 aws cloudformation validate-template --template-body file://cfn-bff-codepipeline.yaml
 aws cloudformation create-stack --stack-name Bff-CodePipeline-Stack --template-body file://cfn-bff-codepipeline.yaml
@@ -403,9 +403,9 @@ aws cloudformation create-stack --stack-name Backend-CodePipeline-Stack --templa
 * Artifact用のS3バケット名を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
     * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
 
-### 3. CodePipelineの確認
+### 4. CodePipelineの確認
   * CodePipelineの作成後、パイプラインが自動実行されるので、デプロイ成功することを確認する
-### 4. ソースコードの変更
+### 5. ソースコードの変更
   * 何らかのソースコードの変更を加えて、CodeCommitにプッシュする
   * CodePipelineのパイプラインが実行され、新しいAPがデプロイされることを確認する
 
