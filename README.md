@@ -25,7 +25,7 @@
 * CI/CD
   * CodePipeline、CodeBuildによる自動ビルド、ECRプッシュ、k8sのローリングアップデートに対応
 ## 事前準備
-* CodePipeline、CodeBuildのArtifact用のS3バケットを作成しておく
+* CodePipeline、CodeBuildのArtifact用、キャッシュ用のS3バケットを作成しておく
 * kubectl, eksctl, helmをインストールしておく
   * 参考
     * https://docs.aws.amazon.com/ja_jp/eks/latest/userguide/install-kubectl.html
@@ -37,6 +37,10 @@
 aws cloudformation validate-template --template-body file://cfn-iam.yaml
 aws cloudformation create-stack --stack-name EKS-IAM-Stack --template-body file://cfn-iam.yaml --capabilities CAPABILITY_IAM
 ```
+* CodePipeline、CodeBuildのArtifact用、キャッシュ用のS3バケット名を変えるには、それぞれのcnスタック作成時のコマンドでパラメータを指定する
+    * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
+    * 「--parameters ParameterKey=CacheS3Location,ParameterValue=(パス名)」
+    
 ## CI環境
 ### 1. アプリケーションのCodeCommit環境
 * 別途、以下の2つのSpringBootAPのプロジェクトが以下のリポジトリ名でCodeCommitにある前提
@@ -65,12 +69,10 @@ aws cloudformation create-stack --stack-name Backend-CodeBuild-CI-Stack --templa
 * Artifact用のS3バケット名を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
     * 「--parameters ParameterKey=ArtifactS3BucketName,ParameterValue=(バケット名)」
 
-* 本当は、CloudFormationテンプレートのCodeBuildのSourceTypeをCodePipelineにするが、いったんDockerイメージ作成して動作確認したいので、今はCodeCommitになっている。動いてはいるので保留。
+* 取得したMavenリポジトリをS3にキャッシュする。キャッシュ用のS3のパス（バケット名/プレフィックス）を変えるには、それぞれのcfnスタック作成時のコマンドでパラメータを指定する
+    * 「--parameters ParameterKey=CacheS3Location,ParameterValue=(パス名)」
 
-* TODO: Mavenのカスタムローカルキャッシュによるビルド時間短縮がうまく動いていない
-  * ひょっとしたら、ローカルキャッシュではなくS3でないとうまくいかない？
-    * https://docs.aws.amazon.com/ja_jp/codebuild/latest/userguide/build-caching.html  
-    * https://aws.amazon.com/jp/blogs/devops/how-to-enable-caching-for-aws-codebuild/
+* 本当は、CloudFormationテンプレートのCodeBuildのSourceTypeをCodePipelineにするが、いったんDockerイメージ作成して動作確認したいので、今はCodeCommitになっている。動いてはいるので保留。
 
 ### 3. ECRへ最初のDockerイメージをプッシュ
 2つのCodeBuildプロジェクトが作成されるので、それぞれビルド実行し、ECRにDockerイメージをプッシュさせる。

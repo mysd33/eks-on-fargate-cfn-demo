@@ -19,6 +19,11 @@ Parameters:
     Description: Artifact Location of S3 Bucket
     Type: String
     Default: mysd33bucket123
+  CacheS3Location:
+    Description: Artifact Location of S3 Bucket Name/Prefix
+    Type: String
+    Default: mysd33bucket123/cache
+
 #Mappings: 
 
 #Conditions: 
@@ -50,11 +55,12 @@ Resources:
       ServiceRole:
         Fn::ImportValue: !Sub ${StackPrefix}-CodeBuildRole-Arn 
       TimeoutInMinutes: 10
-      #TODO: Local Cache for Maven don't work?
       Cache:
-        Type: LOCAL
-        Modes:
-          - LOCAL_CUSTOM_CACHE
+        #Type: LOCAL
+        #Modes:
+        #  - LOCAL_CUSTOM_CACHE
+        Type: S3
+        Location: !Ref CacheS3Location
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
